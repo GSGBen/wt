@@ -25,6 +25,9 @@ var embedFS embed.FS
 var completedSoundPath = "resources/completed.wav"
 var completedIconPath = "resources/stopwatch.png"
 
+// how often to update the display when counting down
+var updateInterval = 100 * time.Millisecond
+
 func main() {
 
 	if len(os.Args) != 2 {
@@ -63,9 +66,29 @@ func main() {
 	default:
 	}
 
-	fmt.Printf("Sleeping %s\n", seconds)
+	// have to declare at least the time.After timer before the select loop.
+	// if you declare it inside, it never gets hit because the ticker is always ready.
+	// (not sure why, when the time.After() call is first)
+	timer := time.NewTimer(seconds)
+	ticker := time.NewTicker(updateInterval)
+	timerFiresAt := time.Now().Add(seconds)
+	done := false
+	for {
+		select {
+		case <-timer.C:
+			done = true
+		case currentTime := <-ticker.C:
+			//fmt.Fprintf(writer, "%s", time)
+			remainingTime := timerFiresAt.Sub(currentTime).Round(updateInterval)
+			// updating the terminal natively because uilive uses too much CPU
+			fmt.Printf("\r %s", remainingTime)
+		}
+		if done {
+			break
+		}
+	}
 
-	time.Sleep(seconds)
+	fmt.Printf("\r%s has elapsed!\n", timeString)
 
 	showNotification(timeString)
 	playSound()
